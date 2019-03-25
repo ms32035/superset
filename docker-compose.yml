@@ -1,0 +1,58 @@
+version: '3'
+services:
+  redis:
+    image: redis
+    volumes:
+      - redis:/data
+  superset:
+    image: ms32035/superset
+    build: .
+    depends_on:
+      - postgres
+      - redis
+    ports:
+      - "8088:8088"
+    environment:
+      - SUPERSET__CACHE_REDIS_HOST
+      - SUPERSET__CACHE_REDIS_PORT
+      - SUPERSET__CACHE_REDIS_DB
+      - SUPERSET__SQLALCHEMY_DATABASE_URI
+      - SUPERSET__GOOGLE_CLIENT_ID
+      - SUPERSET__GOOGLE_SECRET_KEY
+      - SUPERSET__GOOGLE_DOMAIN
+      - SUPERSET__SECRET_KEY
+  celery_worker:
+    image: ms32035/superset
+    depends_on:
+      - redis
+    environment:
+      - CELERY_BROKER_URL
+    command: celery worker --app=superset.tasks.celery_app:app --pool=prefork -Ofair -c 4
+  celery_flower:
+    image: ms32035/superset
+    environment:
+      - CELERY_BROKER_URL
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+    command: celery flower --app=superset.tasks.celery_app:app
+  celery_beat:
+    image: ms32035/superset
+    environment:
+      - CELERY_BROKER_URL
+    depends_on:
+      - redis
+    command: celery beat --app=superset.tasks.celery_app:app
+  postgres:
+    image: postgres
+    restart: always
+    environment:
+      - POSTGRES_DB
+      - POSTGRES_PASSWORD
+      - POSTGRES_USER
+    volumes:
+      - postgres:/var/lib/postgresql/data
+volumes:
+  postgres:
+  redis:
